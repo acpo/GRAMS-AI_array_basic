@@ -1,7 +1,9 @@
 ' Check Time Alignment of 
 ' Ocean Optics strip chart .TimeSeries data
 ' 16.10.2019 ECN
-' updated  ECN
+' Compares time stamps and aligns data so that they all start on the 
+'  same relative time.  This eliminates the time jitter in many 
+'  of the .TimeSeries results when multiple lines are recorded.
 ' Automatically adjusts for the file length so that files of different 
 ' sizes can be read in a batch.
 
