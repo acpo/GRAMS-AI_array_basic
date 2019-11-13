@@ -1,0 +1,40 @@
+' Convert Resistance trace to Temperature
+' 05.02.2013 ECN
+
+free
+
+dim savename (256)
+
+string savename, GETSNAME		'get name of #s (mode GETSNAME = -1)
+
+ffp = getffp()
+flp = getflp()
+points = npts(#s)
+
+newspc zzz(points):see
+#s=#2:see
+setffp ffp
+setflp flp
+onerror 2000
+#s = #s^0.8226
+see
+
+2000
+#s = (#s * 2759.45) - 51.7749
+see
+
+
+menufile $savename, "Save the converted data?", 8+1	'8+1 puts original filename in Saveas box
+savespc $savename					'entered filename gets saved
+
+
+
+
+' *******************
+' Exit clean up code
+' *******************
+4000
+
+	free
+	end 
+

@@ -1,0 +1,49 @@
+' Set maximum value in waveform 
+' Truncates the maximum Y-value to a specific level.
+' Designed for dealing with noise spikes in the current probe.
+' 21 February 2017 ECN
+
+free
+dim calctemp(npts(#s))
+dim savename(256)
+dim auditcomment (256)
+
+string savename, GETSNAME	'get original filename for end
+
+input "Enter an number for the upper limit:", upperlimit
+
+calctemp = #s		'put trace in an integer-numbered array
+			'takes care of issues with point spacing
+
+length = npts(#s)
+startpoint = getffp()	'needed for reconstructing filtered
+endpoint = getflp()	'trace on the correct time-base
+
+dim filteredresult(length)	'identical to original
+
+
+'truncating loop
+
+for i = 0 to (length-1)
+	if calctemp(i) > upperlimit then calctemp(i) = upperlimit
+	filteredresult(i) = calctemp(i)
+next i
+
+newspc filtered(length)
+#s = filteredresult
+setffp startpoint, endpoint	'size to filtered spacing
+see
+
+menu c, "Save_file? Yes No"
+if c = 1 then end
+
+'audit log
+portout addmod, 14	'add smoothing to audit log
+string auditcomment = "Maximum y-value truncated at = " + upperlimit
+dblog #0,-3,$auditcomment
+dblog #0,-3,"  "
+
+menufile $savename, "Save new filtered trace?  *.spc", 8+1
+savespc $savename
+end
+

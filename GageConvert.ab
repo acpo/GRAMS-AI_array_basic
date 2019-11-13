@@ -1,0 +1,99 @@
+' Convert GageScope ASCII Data
+' Converts files saved as ASCII text from the GageScope to SPC.
+' Assumes two columns of data time and voltage (or other).
+' Can convert a list of files at once.
+' 3 August 2010 ECN
+' 6 April 2011 ECN edited the line-by-line data import loop to correct the number of points
+'		read.  We hadn't noticed the error (caused final point to be zero) until now.
+'		Also added better annotations.
+' 22 July 2011 ECN edited the DIM statement for number of points.  It had been the number of 
+'		points reported by Gage file +1.  But that provides one extra point and caused 
+'		the final SPC file point to always be zero.  Overrides previous change.
+
+free
+
+
+dim filenames(256)
+dim getname(1000,256)
+dim newfile (1000,256)
+dim spcname (256)
+dim dir(256)
+dim junk(256)
+dim start(32)
+dim points(32)
+
+' get the file names
+1000	ptr = 0
+	menufile $filenames="Select files: *.asc",2
+	string getname(ptr) = $filenames	'reads first name
+	strname 2, dir = $filenames		'gets directory of files
+1010	onerror 1040				'leaves loop when runs out of filenames
+	ptr = ptr + 1
+	filenames = 0
+	menufile $filenames="",3		'reads next name
+	string getname(ptr)=$filenames
+	goto 1010				'loop here
+	
+1040	'status dialog box
+	dialogbeg "Processing status"
+	dialogloc 1,5,10 : print "Hold on..."
+	dialogend 20	'leave dialog visible while processing
+	
+1050	'get time base and number of points per record from ASCII file
+	for i = 0 to (ptr-1)			'start loop for files
+	
+	open #1, $getname(i)			'open input file
+	strname 3, $newfile(i) = $getname(i)	'get output filename
+	string newfile(i) = $dir + $newfile(i)	'put full path into file string
+		
+	input #1, "dummy", $junk	'read first line to junk
+	input #1, "dummy", $junk	'read Start address in case there is pretriggering
+		string start = $junk(18,26)	'extract number from string in last 8 characters
+		string $start, -20		'set system variable V equal to number in $junk
+		startpoint = v			'store number in my variable name
+
+	input #1, "dummy", $junk	'read Data length
+		string points = $junk(18,26)	'extract number from string in last 8 characters
+		string $points, -20		'set system variable V equal to number in $junk
+		numpoints = v			'store number in my variable name
+		dim ydata(numpoints)		'set length of array and trace (removed the +1
+						'because this is the size of the array, not the
+						'index number
+	for h = 4 to 13
+		input #1, "dummy", $junk	'read remainder of header to junk
+	next h
+
+	input #1, "dummy", firsttime, value	'read first data line to get time and data values
+	ydata(0) = value			'write first y value to index 0
+
+	for n = 1 to (numpoints-2)		'all but the last line of data (the -2 offsets for
+						'having read the first line above and for reading
+						'the last line in a separate command below
+		input #1, "dummy", label, value	'dump time values into junk variable
+		ydata(n) = value		'write just the y values
+	next n
+						'final next n shifts index down to last line
+	input #1, "dummy", lasttime, value	'reads last y-value and last time value
+	ydata(n) = value			'we need last time separately for setting up 
+						'the trace limits, see below
+
+	close #1
+
+	'file conversion
+	newspc zzz(numpoints)		'new empty trace
+	#s = ydata			'write data to trace
+	setffp firsttime, lasttime	'sets beginning and end time
+	see
+	setxtype 4		'sets x-axis to seconds
+	savespc $newfile(i)	'saves SPC file with same name
+	noshow			'closes new evenly-spaced trace
+	
+	free ydata		'clean up for next time through loop
+		
+	next i			'loop back for the other files
+
+dialogend -20	'close dialog at end of processing
+
+free * 
+free
+end 

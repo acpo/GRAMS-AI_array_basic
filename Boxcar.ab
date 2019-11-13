@@ -1,0 +1,60 @@
+' Boxcar filter
+' Will perform a boxcar filter of the selected width on 
+' the active trace.
+' 22 October 2013 ECN
+
+free
+dim calctemp(npts(#s))
+dim savename(256)
+dim auditcomment (256)
+
+string savename, GETSNAME	'get original filename for end
+
+100
+input "Enter an number for the boxcar size:", boxcar
+check = (npts(#s))/2		'error trap to for too big a boxcar
+if check < boxcar then 100	'send them back to enter a new number
+
+calctemp = #s		'put trace in an integer-numbered array
+			'takes care of issues with point spacing
+
+length = npts(#s)
+startpoint = getffp()	'needed for reconstructing filtered
+endpoint = getflp()	'trace on the correct time-base
+dx =(endpoint-startpoint)/(length-1)
+
+'new number of points in file = ((npts-remainder) / integer number of boxcars)
+cycles = int(length / boxcar)		'integer number of boxcars in trace
+remainder = length - (boxcar * cycles)
+newlength = length - remainder
+
+dim filteredresult(newlength)	'we need to recalculate how many points there are based on boxcar
+newendpoint = endpoint - (remainder * dx)
+
+1000
+'boxcar filter
+
+for i = 0 to (cycles-1)
+	rangesum = sum(calctemp((i*boxcar), ((i*boxcar)+(boxcar-1))))
+	rangeavg = rangesum / boxcar
+	filteredresult(i) = rangeavg
+next i
+
+newspc filtered(cycles)
+#s = filteredresult
+setffp startpoint, newendpoint	'resize to filtered spacing, truncates last bit of trace
+see
+
+menu c, "Save_file? Yes No"
+if c = 1 then end
+
+'audit log
+portout addmod, 14	'add smoothing to audit log
+string auditcomment = "Boxcar smoothing applied with width = " + boxcar
+dblog #0,-3,$auditcomment
+dblog #0,-3,"  "
+
+menufile $savename, "Save new filtered trace?  *.spc", 8+1
+savespc $savename
+end
+

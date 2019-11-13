@@ -1,0 +1,50 @@
+' PMT Absorbance
+' Finds an average value for the points in a selected region based on user input.
+' The average is passed to the absorbance calculation.  This is an improvement on
+' the previous OOabsorbance program.
+' User sees average value and % RSD before accepting the average.
+' 04.07.2011 ECN
+
+free
+
+dim txtrangeaverage(256)
+dim txtrangersd(256)
+dim savename(256)
+
+
+1000	'this section is a stand-alone method to get the 
+	'average of a range of trace values
+
+pointer cx, cy, lx, rx		'cx and cy are ignored, lx and rx are
+				'left and right range x-values
+ 
+rangeaverage = sum(#s(lx,rx)) / npts(#s(lx,rx))
+DegFre = npts(#s(lx,rx)) -1	'degrees of freedom for std.dev.
+rangersd = ((sqrt(sumd2((#s(lx,rx)),rangeaverage)/DegFre))/rangeaverage)*100
+
+string txtrangeaverage = "Average of selected range =" + rangeaverage
+string txtrangersd = "RSD (%) of range =" + rangersd
+
+dialogbeg "Average value of selected range"
+dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtrangeaverage
+dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtrangersd
+dialogask  mc,4, 3000,1000,"Accept Try_again"
+dialogend 5
+
+3000 	'calculate absorbance using selected baseline average
+baseline = rangeaverage			'convert name from above
+
+#s = -log(#s/baseline)					'calculates absorbance
+setytype 2						'sets y-axis to absorbance
+autoscale
+see							'show trace
+string savename, GETSNAME				'get name of #s (mode GETSNAME = -1)
+menufile $savename, "Save the converted data?", 8+1	'8+1 puts original filename in Saveas box
+savespc $savename					'entered filename gets saved
+
+
+free
+end 
+
+
+

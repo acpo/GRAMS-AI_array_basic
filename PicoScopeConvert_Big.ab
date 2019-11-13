@@ -1,0 +1,114 @@
+' Convert PicoScope ASCII Data
+' Converts .CSV files saved as ASCII text from the PicoScope to SPC.
+' Assumes three columns of data, time and two voltage (or other).
+' Can convert a list of files at once.
+' 12 October 2012 ECN
+
+
+free
+
+dim filenames(256)
+dim getname(1000,256)
+dim newfile (1000,256)
+dim scratchx(1100000)	'maximum file size is 1100000 points, can be expanded
+dim scratchy(1100000)
+dim scratchz(1100000)
+dim scratcht(1100000)
+dim spcname (256)
+dim dir(256)
+dim junk(256)
+
+
+1000	ptr = 0
+	menufile $filenames="Select files: *.csv",2
+	string getname(ptr) = $filenames	'reads first name in list
+	strname 2, dir = $filenames		'gets directory of files
+1010	onerror 1500				'leaves loop when runs out of filenames
+	ptr = ptr + 1
+	filenames = 0
+	menufile $filenames="",3		'reads next name
+	string getname(ptr)=$filenames		'write filename into array of names
+	goto 1010				'loop here
+	
+1500	'status dialog box
+	dialogbeg "Processing status"
+	dialogloc 1,5,10 : print "Hold on..."
+	dialogend 20	'leave dialog visible while processing
+
+
+2000	for f = 0 to (ptr-1)			'f is the number of files index
+	open #1, $getname(f)			'open input file
+	strname 3, $newfile(f) = $getname(f)	'get output filename
+	string newfile(f) = $dir + $newfile(f)	'put full path into file string
+		for n = 0 to 1
+		input #1, "dummy", $junk	'read 2-line header
+		next n
+	onerror 10000
+	input #1, "dummy", $junk	'read one blank line, trap error
+
+2400	i = 0		'initializes data array index
+
+2500	onerror 12000	'catches the end of file and sends it to write
+	input #1, "dummy", elapsedtime, value1, value2 ', value3	'use value 3 in case of 3 data channels
+	scratcht(i) = elapsedtime
+	scratchx(i) = value1
+	scratchy(i) = value2
+'	scratchz(i) = value3	'in case of 3 data channels
+	i = i + 1
+	goto 2500
+
+2900	close #1			'close file reading
+	dim tdata(i), xdata(i), ydata(i), zdata(i)		'make data arrays correct size
+	tdata = scratcht
+	xdata = scratchx		'swap scratch to data array
+	ydata = scratchy
+'	zdata = scratchz	'in case of 3 data channels
+
+3000	'file conversion
+	newspc zzx(i)
+	xadjust #s=tdata,xdata		'write evenly spaced array
+	see
+	setxtype 4			'x axis in seconds
+	savespc $newfile(f)		'voltage trace has original file name
+	noshow			'closes new evenly-spaced trace
+
+	newspc zzy(i)
+	xadjust #s=tdata,ydata		'write evenly spaced array
+	see
+	setxtype 4			'x axis in seconds
+	string $newfile(f) = $newfile(f) + "v"	'adds v to the end of the voltage trace
+	savespc $newfile(f)
+	noshow			'closes new evenly-spaced trace
+
+'in case of 3 data channels
+'	newspc zzz(i)
+'	xadjust #s=tdata,zdata		'write evenly spaced array
+'	see
+'	setxtype 4			'x axis in seconds
+'	string $newfile(f) = $newfile(f) + "pin"	'adds pin to the end of the current trace
+'	savespc $newfile(f)
+'	noshow			'closes new evenly-spaced trace
+
+
+	free tdata, xdata, ydata, zdata	
+	next f
+
+dialogend -20	'close dialog at end of processing
+
+' *******************
+' Exit clean up code
+' *******************
+4000
+	free * 
+	free
+	end 
+
+' *** Error handling ***
+10000	'catch blank line in CSV file
+	goto 2400
+
+12000	onerror -1:goto 2900
+
+
+
+

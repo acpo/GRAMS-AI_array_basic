@@ -1,0 +1,78 @@
+' Blackbody Subtract
+' Subtracts one trace (blackbody) from two other traces (line and background)
+' to remove broadband emission from the two-line correction method.
+' Saves the file with the original name and appends "_bb" to the end.
+' Caution!  It will overwrite files of the same name.
+' 07.12.2011 ECN
+
+free
+
+dim filenames(256)
+dim getname(10,256)
+dim newfile (10,256)
+dim spcname (256)
+dim blackbody(256)
+dim auditcomment(1000)
+dim dir(256)
+
+
+1000
+	'loads line and background files
+	ptr=0
+	menufile $filenames="Select line and background files: *.spc",2
+	string getname(ptr) = $filenames	'reads first name in list
+	strname 2, dir = $filenames		'gets directory of files
+1010	onerror 2000				'leaves loop when runs out of filenames
+	ptr = ptr + 1
+	filenames = 0
+	menufile $filenames="",3		'reads next name
+	string getname(ptr)=$filenames		'write filename into array of names
+	goto 1010				'loop here
+
+2000
+	'load blackbody trace into volatile memory
+	menufile $blackbody, "Select blackbody to subtract: *.spc"
+	openspc $blackbody, bbsubtract	
+
+	'calculate one trace at a time to keep it organized
+	'with only 2 traces a for-next is reasonable
+
+2050	for f = 0 to (ptr-1)			'f is the number of files index
+	loadspc $getname(f)			'open file
+	strname 3, $newfile(f) = $getname(f)	'get output filename
+	string newfile(f) = $dir + $newfile(f) + "_bb"	'put full path into file string
+
+2060
+	'do the subtraction
+	#s = #s - bbsubtract
+
+2070
+	'auditing
+	portout addmod, 19	'add subtraction to audit log
+	'add filenames to audit log	
+	string auditcomment = "Original File = " + $getname(f) 
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Term File = " + $blackbody
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Operation = Subtract"
+	dblog #0,-3,$auditcomment
+	dblog #0,-3,"  "
+
+3000
+	'file saving
+	savespc $newfile(f)	'takes care of spc extension automatically
+'	noshow			closes new evenly-spaced trace
+'	leave the new traces open because absorbance conversion happens next
+
+	next f
+
+' *******************
+' Exit clean up code
+' *******************
+4000
+	'clean up volatile memory
+	closespc bbsubtract
+
+	free
+	end 
+

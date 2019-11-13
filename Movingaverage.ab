@@ -1,0 +1,51 @@
+' Moving Average
+' Will perform a moving average filter of the selected width on 
+' the active trace.
+' 3 August 2010 ECN
+
+free
+dim calctemp(npts(#s))
+dim filteredresult(npts(#s))
+dim savename(256)
+dim auditcomment(256)
+
+string savename, GETSNAME	'get original filename for end
+
+100
+input "Enter an ODD number for the window size:", window
+offset = (window-1)/2
+check = int(offset)		'error trap to require odd number
+if check <> offset then 100	'send them back to enter a new number
+
+calctemp = #s		'put trace in an integer-numbered array
+			'takes care of issues with point spacing
+
+length = npts(#s)
+startpoint = getffp()	'needed for reconstructing filtered
+endpoint = getflp()	'trace on the correct time-base
+
+'moving average filter
+for i = offset to (length-offset)
+	rangesum = sum(calctemp((i-offset), (i+offset)))
+	rangeavg = rangesum / window
+	filteredresult(i) = rangeavg
+next i
+
+newspc filtered(length)
+#s = filteredresult
+setffp startpoint, endpoint	'resize to original spacing
+see
+
+menu c, "Save_file? Yes No"
+if c = 1 then end
+
+'audit log
+portout addmod, 14	'add smoothing to audit log
+string auditcomment = "Moving average smoothing applied with window width = " + window
+dblog #0,-3,$auditcomment
+dblog #0,-3,"  "
+
+menufile $savename, "Save new filtered trace?  *.spc", 8+1
+savespc $savename
+end
+

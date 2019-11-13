@@ -1,0 +1,137 @@
+' Check Time Alignment of 
+' Ocean Optics strip chart .TimeSeries data
+' 16.10.2019 ECN
+' updated  ECN
+' Automatically adjusts for the file length so that files of different 
+' sizes can be read in a batch.
+
+free
+
+dim filenames(256)
+dim getname(1000,256)
+dim newfile (1000,256)
+dim scratchx(12000)	'maximum file size is 2 minutes at 10 ms per point
+dim scratchy(12000)
+dim scratchmin(5)	'only reads four values
+dim scratchsec(5)	'only reads four values
+dim starttime(5)	'only reads four values
+dim spcname (256)
+dim dir(256)
+dim junk(256)
+
+dim matrix(5,3)		' five rows on three files
+dim extents(3)
+dim shift(3)
+
+1000	ptr = 0
+	menufile $filenames="Select related files: *.TimeSeries",2
+	string getname(ptr) = $filenames	'reads first name in list
+	strname 2, dir = $filenames		'gets directory of files
+1010	onerror 2000				'leaves loop when runs out of filenames
+	ptr = ptr + 1
+	filenames = 0
+	menufile $filenames="",3		'reads next name
+	string getname(ptr)=$filenames		'write filename into array of names
+	goto 1010				'loop here
+
+	' the block 2000 to 2900 is the for/next loop of f, the files
+2000	for f = 0 to (ptr-1)			'f is the number of files index
+	open #1, $getname(f)			'open input file
+	strname 3, $newfile(f) = $getname(f)	'get output filename
+	string newfile(f) = $dir + $newfile(f)	'put full path into file string
+		for n = 0 to 4
+		input #1, "dummy", $junk	'read 5-line header
+		next n
+
+	i = 0	'initializes data array index
+
+2500	onerror 50000	'read all lines, goes to 2700 when it runs out
+	input #1, "dummy", hour, minute, second, elapsedtime, value
+	scratchx(i) = elapsedtime
+	scratchy(i) = value
+	scratchmin(i) = minute
+	scratchsec(i) = second
+	i = i + 1	'i is the length of the trace
+	goto 2500
+
+2600	matrix(0, f) = 3 - f	'sets first matrix row to the slot number
+				'newspc pushes slots up by one, so first loaded trace 
+				'ends up as slot 3
+	for z = 0 to 3	'get matrix from first 4 lines
+	starttime(z) = (scratchmin(z) * 60) + scratchsec(z)
+	matrix(z+1 , f) = starttime(z)
+	next z
+
+2700	close #1			'close file reading
+	dim xdata(i), ydata(i)		'make data arrays correct size
+	xdata = scratchx		'swap scratch to data array
+	ydata = scratchy
+
+2900	'file conversion
+	newspc zzz(i)
+	xadjust #s=xdata,ydata		'write evenly spaced array
+	see
+	setxtype 4			'x axis in seconds
+	savespc $newfile(f)
+	'trace is kept open so that we can shift it later
+	free xdata, ydata	
+
+	next f	'start importing next file
+
+4000	'determine if shifts are necessary	
+	interval = (rnd( (scratchx(3) - scratchx(2)) * 1000))/1000	'get point spacing; needed to make integer before rounding
+	m = 0
+	for z = 0 to 2	'collect first point of all 3 traces
+	extents(m) = matrix(1,m)	'second row is first time value
+	m = m + 1
+	next z
+	minimum = min(extents)
+	maximum = max(extents)
+
+	if maximum = minimum then 10000 else 5000	'if all equal then we are done
+
+5000	for c = 0 to 2	'c as in column number, 3 traces: 0 to 2
+	if matrix(1,c) = maximum then 5500
+5100	if matrix(2,c) = maximum then 5501
+5200	if matrix(3,c) = maximum then 5502
+5300	if matrix(4,c) = maximum then 5503 else 55000	'go to a dialog showing a problem
+5400	next c
+5450	goto 6000
+
+5500	shift(c) = 0 : goto 5400
+5501	shift(c) = 1 : goto 5400
+5502	shift(c) = 2 : goto 5400
+5503	shift(c) = 3 : goto 5400
+
+'  At this point we have shift(c) for all three traces
+
+
+6000	'shift traces
+	for f = 0 to 2		'only 3 files, ever
+	setfile matrix(0, f)	'get the slot number from the matrix
+	first = getffp()	'get first and last point in a trace.  the active trace?
+	last = getflp()
+	first = first - (interval * shift(f) )	'will need this in a for-next to go through the n-th shift 
+	last = last - (interval * shift(f) )
+	setffp first, last
+	savespc			'saves over file, with no filename given should overwrite
+'	noshow			'closes shifted trace
+	next f
+
+	
+' *******************
+' Exit clean up code
+' *******************
+10000
+	noshow : noshow : noshow
+	free
+	end 
+
+' *** Error handling ***
+50000	onerror -1:goto 2600	'goes to write the time matrix
+
+55000	'status dialog box
+	dialogbeg "Error in processing"
+	dialogloc 1,5,10 : print "Data times don't match.  Data interval was "; interval
+	dialogend	'leave dialog visible while processing
+

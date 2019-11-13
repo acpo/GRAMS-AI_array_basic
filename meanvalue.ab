@@ -1,0 +1,34 @@
+' Calculates mean value of a selected range.
+' 09.13.2012 ECN
+
+free
+dim txtrangeaverage(256)
+dim txtrangersd (256)
+dim txtpoints (256)
+
+onpaint 0
+
+1000
+	pointer cx, cy, lx, rx		'cx and cy are ignored, lx and rx are
+					'left and right range x-values
+
+	if npts(#s(lx,rx)) <= 5 then goto 21000
+ 
+	rangeaverage = sum(#s(lx,rx)) / npts(#s(lx,rx))
+	DegFre = npts(#s(lx,rx)) -1	'degrees of freedom for std.dev.
+	rangersd = ((sqrt(sumd2((#s(lx,rx)),rangeaverage)/DegFre))/rangeaverage)*100
+
+	string txtrangeaverage = "Average of selected range =" + rangeaverage
+	string txtrangersd = "RSD (%) of range =" + rangersd
+	string txtpoints = "number of points =" + DegFre +1	
+
+	dialogbeg "Average value of selected range"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtrangeaverage
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtrangersd
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtpoints
+	dialogask  mc,4, 1000, 2000,"Try_again Accept"
+	dialogend
+2000
+
+end
+

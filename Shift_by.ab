@@ -1,0 +1,78 @@
+' X-axis shift by user input time
+' Shifts active trace by a number of MILLISECONDS input by user.
+' Only useful for time-based traces in seconds.
+' File is NOT saved after shifting!
+' 05.31.2012 ECN
+' updated to provide forward and backward repeat shift 09.13.2012 ECN
+
+free
+dim left(32)
+dim right(32)
+dim prompt(256)
+
+1000
+	first = getffp()
+	last = getflp()
+	
+	string left = "Start time = " + first
+	string right = "End time = " + last
+	string prompt = "Time off-set in MILLISECONDS: "
+
+	dialogbeg "Shift the x-axis"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, $left
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, $right
+	dialogask shift,0,0,0,$prompt
+	dialogask  i,67,0,0,"Shift_to_earlier Shift_to_later Cancel"
+	dialogend 5
+
+	shift = shift / 1000	
+
+	if i = 0 then shift = shift * -1 : goto 2000
+	if i = 1 then goto 2000
+	if i = 2 then goto 10000
+
+
+2000
+	first = first + shift
+	last = last + shift
+
+	setffp first, last
+
+	see
+
+4000
+	dialogbeg "Do it again?"
+'	dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtrangersd
+
+	dialogask  mc,4, 8000, 9000,"Again Reverse_direction Finished"
+	dialogend
+
+8000
+	goto 2000
+
+9000
+	shift = shift * -1
+	goto 2000
+
+' *******************
+' Exit clean up code
+' *******************
+10000
+	onerror 11000
+	waiton
+	dialogbeg "Reminder"
+	dialogloc 0, 10 : print "Don't forget to save the file!"
+	dialogend 20
+
+'processing continues
+	t1=clock(0) : count=0
+10500	if keyboard(0) then count=count+1
+	if not(clock(3)) goto 10500        'wait 3 seconds
+11000
+	waitoff : dialogoff -20 : goto 20000    'remove dialog and end
+
+
+20000
+	free
+	end 
+

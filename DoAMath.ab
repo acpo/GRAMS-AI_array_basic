@@ -1,0 +1,61 @@
+' Do a math function
+' Caution!  It will overwrite files of the same name.
+' 18.10.2017 ECN
+
+free
+
+dim filenames(256)
+dim getname(1000,256)
+dim newfile (1000,256)
+dim spcname (256)
+dim blackbody(256)
+dim auditcomment(1000)
+dim dir(256)
+
+1000	ptr = 0
+	menufile $filenames="Select files: *.spc",2
+	string getname(ptr) = $filenames	'reads first name in list
+	strname 2, dir = $filenames		'gets directory of files
+1010	onerror 1500				'leaves loop when runs out of filenames
+	ptr = ptr + 1
+	filenames = 0
+	menufile $filenames="",3		'reads next name
+	string getname(ptr)=$filenames		'write filename into array of names
+	goto 1010				'loop here
+
+1500	'status dialog box
+	dialogbeg "Processing status"
+	dialogloc 1,5,10 : print "Hold on..."
+	dialogend 20	'leave dialog visible while processing
+
+
+2000	for f = 0 to (ptr-1)			'f is the number of files index
+	loadspc $getname(f)			'open input file
+	strname 3, $newfile(f) = $getname(f)	'get output filename
+	string newfile(f) = $dir + $newfile(f)	'put full path into file string
+
+	#s = #s - 10
+	#s = #s * 2
+
+	'auditing
+	portout addmod, 15	'add math to audit log
+	'add filenames to audit log	
+	string auditcomment = "Original File = " + $getname(f) 
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Operation = multiply by 2 to correct level"
+	dblog #0,-3,$auditcomment
+	dblog #0,-3,"  "
+
+3000
+	'file saving
+	savespc $newfile(f)	'takes care of spc extension automatically
+'	noshow			closes new evenly-spaced trace
+	next f
+' *******************
+' Exit clean up code
+' *******************
+4000
+	'clean up volatile memory
+	noshow
+	free
+	end 

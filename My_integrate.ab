@@ -1,0 +1,40 @@
+' Quicky integration and peak height
+' 05.31.2012 ECN
+
+free
+
+ffp = getffp()
+flp = getflp()
+points = npts(#s)
+dx = (flp-ffp)/(points-1)
+
+xcursor = cursorx()
+ycursor = cursory()
+printhue yellow, navy : printline 25: pauseoff
+print "point to integration limits:  F9=Left, F10=Right. Enter=Done"
+pointer xcursor, ycursor, leftx, rightx
+
+area =  (sum(#s(leftx, rightx))) * dx
+height =  (max(#s(leftx, rightx)))
+range = rightx - leftx
+
+dialogbeg "Peak Report"
+print "The area (mathematical) is "; (sum(#s(leftx, rightx))) * dx
+print ""
+print "The peak height is "; (max(#s(leftx, rightx)))
+print ""
+print "dX"; dx
+print "The range was "; range; " seconds"
+print "The area (sum) is "; sum(#s(leftx, rightx))
+print "The average is "; sum(#s(leftx, rightx))/npts(#s(leftx,rightx))
+print "The final cursor position was: "; xcursor; ", "; ycursor
+dialogend
+
+' *******************
+' Exit clean up code
+' *******************
+4000
+
+	free
+	end 
+

@@ -1,0 +1,106 @@
+' Convert Resistance trace to Temperature
+' 05.02.2013 ECN
+' takes voltage (slot 1) and current (slot 2) traces
+' divides and then calculates temperature for a 15 V filament
+' 14.3.2013 ECN
+' Updated 21.10.2013 with better file loading and audit logging
+
+
+free
+
+dim savename (256)
+dim v_filename(256)
+dim i_filename(256)
+dim newfile (256)
+dim dir(256)
+dim prompt (2, 512)
+dim auditcomment (1000)
+
+onpaint 0	'prettier drawing
+
+'make sure that we load into slots 1 and 2
+	files = getsfile()		'are there any files loaded?
+	if files = 0 then goto 500	'if no, then go ahead
+	setfile 1			'if yes, go to first slot
+'to the good stuff
+
+500
+'load voltage trace first, becomes slot 1
+'current next, becomes slot 2
+'
+	string prompt(0) = "Select voltage file: *.spc"
+	string prompt(1) = "Select current file: *.spc"
+
+' load voltage
+	menufile $v_filename, $prompt(0)
+	loadspc $v_filename				'open file
+	see
+	strname 2, dir = $v_filename			'gets directory of voltage file
+	strname 3, $newfile = $v_filename		'get output filename base only
+	string newfile = $dir + $newfile		'append directory to base file
+
+	xunits = getxtype()
+
+'load current
+	menufile $i_filename, $prompt(1)
+	loadspc $i_filename				'open file
+	see
+
+	string savename = $newfile + "_temp.spc"	'voltage in slot 1
+	swapfile 1,2	'puts voltage in slot 1
+
+
+ffp = getffp()
+flp = getflp()
+points = npts(#s)
+
+
+newspc zzz(points):see		'make new trace in slot 1
+#s=#2/#3:see			'calculate v/i
+setffp ffp
+setflp flp
+onerror 2000	'catches negative number error
+#s = #s^0.8226	'coefficients for 15 volt filament
+see
+
+2000
+#s = (#s * 2759.45) - 51.7749
+autoscale:see
+
+setxtype xunits
+setytype 21
+
+3000
+'audit log
+	slotnum = 1		'slot 1 is temperature trace
+	setfile slotnum
+	portout addmod, 15	'add division to audit log
+	'add filenames to audit log	
+	string auditcomment = "Voltage File = " + $v_filename
+	dblog #0,-3,$auditcomment
+	f=1
+	string auditcomment = "Current File = " + $i_filename
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Operation = convert to temperature"
+	string auditcomment = "Equation for 15V filament, T= ((R^0.8226)*2759.45)-51.7749"
+	dblog #0,-3,$auditcomment
+	dblog #0,-3,"  "
+
+
+3500 
+'file save
+
+menufile $savename, "Save the converted data?", 8+1	'8+1 puts original filename in Saveas box
+savespc $savename					'entered filename gets saved
+
+
+
+
+' *******************
+' Exit clean up code
+' *******************
+4000
+
+	free
+	end 
+

@@ -1,0 +1,96 @@
+' Convert High Speed Acquisition data
+' Converts Ocean Optics high speed acquisition mode data to GRAMS files
+' raw data is multiple columns of text
+' first column is wavelength
+' first row is time
+' 07.10.2009 ECN
+
+free
+
+dim filenames(256)
+dim getname(1000,256)
+dim newfile (1000,256)
+dim dir(256)
+
+' ** set number of points in each spectrum; HR 4000 has 3648
+numpixels = 3648
+dim xdata(numpixels)
+dim ydata(numpixels)
+
+	'Select files to convert
+1000	ptr = 0
+	menufile $filenames="Select files: *.txt",2
+	string getname(ptr) = $filenames	'reads first name
+	strname 2, dir = $filenames		'gets directory of files
+1010	onerror 1050				'leaves loop when runs out of filenames
+	ptr = ptr + 1
+	filenames = 0
+	menufile $filenames="",3		'reads next name
+	string getname(ptr)=$filenames
+	goto 1010				'loop here
+	
+1050	'get number of points per record; this is the number of data columns
+	dialogbeg "Convert HSA files"
+	dialogtxt 0,0,0,"All files must have the same number of spectra!!!"
+	dialogloc 0,0,25
+	dialogask numspectra,1,1,50000,"Number of spectra in file"
+	dialogend 2
+
+	dim datamatrix (numspectra+1,numpixels)		'includes one extra row for wavelength data
+	dim times(numspectra)				'number of time values for Z-axis
+
+2000	'read data from HSA text file
+	for f = 0 to (ptr-1)
+		open #1, $getname(f)			'open input file
+		strname 3, $newfile(f) = $getname(f)	'get output filename with .prn
+		string newfile(f) = $dir + $newfile(f)	'append directory
+
+		for t = 0 to numspectra-1
+			input #1, value;	'read times one by one
+			times(t) = value	'shove data into an array of time data
+		next t
+		
+		for n = 0 to (numpixels-1)	'3648 pixels in HR 4000 detector
+			for i = 0 to numspectra	'loop to read one line into array
+			input #1, value;
+			datamatrix(i,n) = value	'data is transposed to write rows as spectra
+			next i
+		next n 
+
+		close #1
+
+
+5000		'write out wavelength data
+		xdata = datamatrix(0)
+
+		'write out first spectrum and linearize the data
+		ydata = datamatrix(1)		'second row is first spectrum
+		newspc zzz(numpixels,20)	'multifile with ascending Z data (20=16+4, ascending + multifile)
+		xadjust #s=xdata,ydata		'makes wavelengths evenly spaced
+		see
+		setstime times(0)		'subfile number 0 with Z=first time point
+		setxtype 3: setztype 23		'x in nanometers, z in milliseconds
+		savespc $newfile(f)
+
+		'write the rest of the subfiles
+		for j = 2 to numspectra
+			k = j-1			'subfile number
+			#s = datamatrix(j)
+			setstime times(k)	'Z value
+			savespc $newfile(f),#j
+		next j
+
+		noshow	'remove spectra from display
+
+	next f	'loop for importing multiple HSA files
+
+
+' *******************
+' Exit clean up code
+' *******************
+61500	free *
+	free
+	end 
+
+
+

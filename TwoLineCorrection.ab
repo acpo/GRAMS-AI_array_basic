@@ -1,0 +1,61 @@
+' Two Line Correction
+' Subtracts a background trace from a signal trace.  This implements 
+' the two-line correction method for absorbance data.
+' Saves the file with the original name and appends "_sub" to the end.
+' Caution!  It will overwrite files of the same name.
+' 07.12.2011 ECN
+
+free
+
+dim filename(256)
+dim newfile (256)
+dim background(256)
+dim auditcomment(1000)
+dim dir(256)
+
+
+1000
+	'loads line trace
+	menufile $filename="Select line file: *.spc"
+	loadspc $filename			'open file
+	see
+	strname 2, dir = $filename		'gets directory of file
+	strname 3, $newfile = $filename	'get output filename base only
+	string newfile = $dir + $newfile + "_sub"	'put full path into file string
+
+2000
+	'load background trace into volatile memory
+	menufile $background, "Select background to subtract: *.spc"
+	openspc $background, bkgndsubtract	
+
+3000
+	'do the subtraction
+	#s = #s - bkgndsubtract
+
+4000
+	'auditing
+	portout addmod, 19	'add subtraction to audit log
+	'add filenames to audit log	
+	string auditcomment = "Original File = " + $filename
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Term File = " + $background
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Operation = Subtract"
+	dblog #0,-3,$auditcomment
+	dblog #0,-3,"  "
+
+5000
+	'file saving
+	savespc $newfile	'takes care of spc extension automatically
+'noshow			'closes new evenly-spaced trace
+	
+' *******************
+' Exit clean up code
+' *******************
+10000
+	'clean up volatile memory
+	closespc bkgndsubtract
+
+	free
+	end 
+

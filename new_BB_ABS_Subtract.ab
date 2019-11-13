@@ -1,0 +1,312 @@
+' Combined program that performs:
+'				Blackbody Correction
+'				Coversion to Absorbance
+'				Two Line Correction
+' Subtracts one trace (blackbody) from two other traces (line and background)
+' to remove broadband emission from the two-line correction method.
+' Saves the file with the original name and appends "_bb" to the end.
+'
+' Does the PMTabsorbance interactive conversion (code inserted).
+' Saves the file with the original name and appends "_abs" to the end.
+'
+' Subtracts a background trace from a signal trace.  This implements 
+' the two-line correction method for absorbance data.
+' Saves the file with the original name and appends "_sub" to the end.
+' Caution!  It will overwrite files of the same name.
+'
+' Clear all traces from memory before starting!!!  Not mandatory, but a good idea.
+'
+' File names are managed by changing the slot names (setsname commands).  When
+' just text-strings were used for names, the savespc command would save any file
+' in the directory with the same base name; so all .TimeSeries source files got 
+' saved several times.  The method in this program avoids the problem.
+'
+' 07.12.2011 ECN  merged individual processing parts and wrote control sections
+' 25.05.2012 ECN  fixed error on end of loop at 60000
+
+free
+
+dim linename (40)
+dim bkgname (40)
+dim basename (40)
+dim filename(2,256)
+dim newfile (2,256)
+dim dir(2,256)
+dim prompt (3,512)
+dim blackbody(256)
+dim auditcomment(1000)
+dim txtpoints (256)
+dim txtrangeaverage(256)
+dim txtrangersd(256)
+dim type(25)
+
+onpaint 0	'prettier drawing
+
+'make sure that we load into slots 1 and 2
+	files = getsfile()		'are there any files loaded?
+	if files = 0 then goto 500	'if no, then go ahead
+	setfile 1			'if yes, go to first slot
+'to the good stuff
+
+500
+	'get base filenames to make file selection easier
+	dialogbeg "Base names for data files"
+	dialogask linename, 2, 32, 32, "Type the base filename for all line files: "
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, ""
+	dialogask bkgname, 2, 32, 32, "Type the base filename for all background files: "
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, ""
+	dialogask basename, 2, 32, 32, "Type the base filename for all baseline files: "
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, ""
+	dialogend 5
+	
+	string linename = "?*" +$linename + "*.spc"
+	string bkgname = "?*" +$bkgname + "*.spc"
+	string basename = "?*" +$basename + "*.spc"
+
+	string prompt(0) = "Select line file:  " + $linename
+	string prompt(1) = "Select background file:  " + $bkgname
+	string prompt(2) = "Select blackbody trace to subtract:  " +$basename
+
+
+1000
+	'load line trace as f=0, becomes slot 1
+	'background as f=1, becomes slot 2
+	'!! string index starts at 0, slot index at 1
+	'!! we need to use f+1 for the setfile statements
+
+for f = 0 to 1
+	menufile $filename(f), $prompt(f)
+	loadspc $filename(f)			'open file
+	autoscale : see
+	strname 3, $newfile(f) = $filename(f)	'get output filename base only, no extension
+	
+	next f
+
+	strname 2, dir = $filename(0)		'gets directory of line file	
+	string dir, setdir			'sets current directory (should be set by the open
+						'command but this makes it explict)
+	swapfile 1,2	'puts line trace in slot 1 and background in slot 2
+
+	
+2000
+	'load blackbody trace into volatile memory
+	menufile $blackbody, $prompt(2)
+	openspc $blackbody, bbsubtract	
+
+3000
+	'do the blackbody subtraction
+	#1 = #1 - bbsubtract	'line
+	#2 = #2 - bbsubtract	'background
+	see
+	
+	'clean up volatile memory
+	closespc bbsubtract
+
+	'set up output
+	string $type = "_bb"	'set file suffix
+	gosub 9000		'audit log
+	gosub 8000		'write files
+
+
+4000
+	'Zoom first
+	setfile 1		'line trace
+	setleft  getffp(), getflp()
+	autoscale : see
+
+4020
+	dialogbeg "Zoom for processing"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "Zoom on the baseline region just before atomization."
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "Drag a box (with left mouse button) to zoom"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "Hint: include the atomization spike in the box"
+	dialogask  mc,4,4050,0,"Do_it"
+	dialogend 5
+
+4050
+	pointer llx, lly, lx, rx, urx, ury		'lx and ry are ignored and zero,
+							'llx and lly are lower-left corner of box
+							'urx and ury are upper-right corner of box
+
+	if llx = urx OR lly = ury OR llx = 0 then goto 20000	'trap for box with no area
+
+	setright urx : setleft llx			'set x-axis left and right
+	autoscale : see					'set y-axis
+
+
+	'Absorbance conversion
+	'operate on both traces in sequence
+
+	gosub 4100
+	
+	setfile 2 	'background
+	autoscale : see	'puts background trace on scale
+	gosub 4100	'start absorbance conversion
+
+	string $type = "_abs"	'set file suffix
+	gosub 9200		'audit log
+	gosub 8000		'write files
+	goto 5000		'move on to the next section
+
+	'go do the absorbance calculation
+
+4100
+	'this section is a stand-alone method to get the 
+	'average of a range of trace values
+
+	pointer cx, cy, lx, rx		'cx and cy are ignored, lx and rx are
+					'left and right range x-values
+
+	if npts(#s(lx,rx)) <= 5 then goto 21000
+ 
+	rangeaverage = sum(#s(lx,rx)) / npts(#s(lx,rx))
+	DegFre = npts(#s(lx,rx)) -1	'degrees of freedom for std.dev.
+	rangersd = ((sqrt(sumd2((#s(lx,rx)),rangeaverage)/DegFre))/rangeaverage)*100
+
+	string txtpoints = "Number of points in range = " + npts(#s(lx,rx))
+	string txtrangeaverage = "Average of selected range = " + rangeaverage
+	string txtrangersd = "RSD (%) of range = " + rangersd
+
+	dialogbeg "Average value of selected range"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtpoints
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtrangeaverage
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, $txtrangersd
+	dialogask  mc,4, 4500,4100,"Accept Try_again"
+	dialogend 5
+
+4500
+	'calculate absorbance using selected baseline average
+	baseline = rangeaverage			'convert name from above
+
+	#s = -log(#s/baseline)			'calculates absorbance
+	setytype 2				'sets y-axis to absorbance
+	autoscale
+	see
+
+	return
+
+
+5000
+	'background subtract for two-line method
+	string $type = "_sub"	'set file suffix
+
+	setfile 1	'line
+	#s = #s - #2	'subtract background from line
+	autoscale : see
+
+	'audit log
+	gosub 9400
+	'write the file here since only the line gets saved
+	f=0		'line is in index 0
+	slotnum = f+1					'f=0 points to slot 1
+	setfile slotnum
+	string newfile(f) = $newfile(f) + $type		'concatenate _sub to slot name
+
+	string newfile(f), setsname	'set the slot name to the appended name
+	savespc		'saves #s with its slot name, takes care of spc extension automatically
+	goto 60000	'clean up
+
+
+8000
+	'file saving
+	f=0
+	for f=0 to 1
+	slotnum = f+1					'f=0 points to slot 1
+	setfile slotnum
+	string newfile(f) = $newfile(f) + $type		'append suffix onto name
+
+	string newfile(f), setsname	'set the slot name to the appended name
+	savespc		'saves #s with its slot name, takes care of spc extension automatically
+	next f
+
+	return
+
+9000
+	'auditing for blackbody subtraction
+	f=0 
+
+	for f=0 to 1		'loop to get both files
+	slotnum = f+1		'f=0 points to slot 1
+	setfile slotnum
+	portout addmod, 19	'add subtraction to audit log
+	'add filenames to audit log	
+	string auditcomment = "Original File = " + $filename(f)
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Term File = " + $blackbody
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Operation = Subtract"
+	dblog #0,-3,$auditcomment
+	dblog #0,-3,"  "
+	next f
+	return
+
+9200
+	'auditing for absorbance conversion
+	f=0 
+
+	for f=0 to 1		'loop to get both files
+	slotnum = f+1		'f=0 points to slot 1
+	setfile slotnum
+	see
+	portout addmod, 25	'add conversion to audit log
+	'add filenames to audit log	
+	string auditcomment = "Original File = " + $newfile(f)
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Operation = convert to absorbance"
+	dblog #0,-3,$auditcomment
+	dblog #0,-3,"  "
+	next f
+	return
+
+9400
+	'auditing for background correction
+	'only need to write to line file
+	setfile 1
+	portout addmod, 19	'add subtraction to audit log
+	'add filenames to audit log	
+	string auditcomment = "Original File = " + $newfile(0)
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Term File = " + $newfile(1)
+	dblog #0,-3,$auditcomment
+	string auditcomment = "Operation = Subtract"
+	dblog #0,-3,$auditcomment
+	dblog #0,-3,"  "
+	return
+
+
+	
+'%%  Error Handling %%
+
+20000	'zoom box errors
+	dialogbeg "Zoom selection"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "No area selected."
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "Select a box containing the area of interest"
+	dialogask  mc,4,4020,0,"Try_again"
+	dialogend 5
+
+21000	'baseline selection errors
+	dialogbeg "Baseline selection"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "Not enough points selected."
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "Baseline must contain more than 5 points"
+	dialogask  mc,4,4100,0,"Try_again"
+	dialogend 5
+
+
+' *******************
+' Exit clean up code
+' *******************
+60000
+	dialogbeg "Continue processing"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "Process another set of data?"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, "Previous data will be removed from the screen"
+	dialogloc 0, 10 : dialogtxt 0, 0, 0, ""
+	dialogask mc,4, 61000, 62000, "Yes No"
+	dialogend
+61000
+	noshow
+	noshow
+	see
+	goto 1000
+62000
+	free
+	end 
+
