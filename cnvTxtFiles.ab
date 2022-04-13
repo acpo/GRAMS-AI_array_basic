@@ -1,0 +1,87 @@
+' Convert Textfiles to SPC
+' Deals with the lack of compatible text importers in older GRAMS versions
+' 12/04/2022 ECN
+' 
+' Skips header lines that begin with # 
+' 
+
+free
+
+dim filenames(256)
+dim getname(1000,256)
+dim newfile (1000,256)
+dim scratchx(12000)	'maximum file size is 2 minutes at 10 ms per point
+dim scratchy(12000)
+dim spcname (256)
+dim dir(256)
+dim junk(256)
+
+
+1000	ptr = 0
+	menufile $filenames="Select files: *.txt",2
+	string getname(ptr) = $filenames	'reads first name in list
+	strname 2, dir = $filenames		'gets directory of files
+1010	onerror 1500				'leaves loop when runs out of filenames
+	ptr = ptr + 1
+	filenames = 0
+	menufile $filenames="",3		'reads next name
+	string getname(ptr)=$filenames		'write filename into array of names
+	goto 1010				'loop here
+	
+1500	'status dialog box
+	dialogbeg "Processing status"
+	dialogloc 1,5,10 : print "Hold on..."
+	dialogend 20	'leave dialog visible while processing
+
+
+2000	for f = 0 to (ptr-1)			'f is the number of files index
+	open #1, $getname(f)			'open input file
+	strname 3, $newfile(f) = $getname(f)	'get output filename
+	string newfile(f) = $dir + $newfile(f)	'put full path into file string
+		for n = 0 to 1
+		input #1, "dummy", $junk	'read 2-line header
+		next n
+
+	i = 0		'initializes data array index
+
+2500	onerror 5000	'catches the end of file and sends it to write
+	input #1, "dummy", elapsedtime, value
+	scratchx(i) = elapsedtime
+	scratchy(i) = value
+	i = i + 1
+	goto 2500
+
+2900	close #1			'close file reading
+	dim xdata(i), ydata(i)		'make data arrays correct size
+	xdata = scratchx		'swap scratch to data array
+	ydata = scratchy
+
+3000	'file conversion
+	newspc zzz(i)
+	xadjust #s=xdata,ydata		'write evenly spaced array
+	see
+	setxtype 4			'x axis in seconds
+	setytype 2			'y axis in absorbance
+	savespc $newfile(f)
+	noshow			'closes new evenly-spaced trace
+
+	free xdata, ydata	
+	next f
+
+dialogend -20	'close dialog at end of processing
+
+' *******************
+' Exit clean up code
+' *******************
+4000
+	free * 
+	free
+	end 
+
+' *** Error handling ***
+5000	onerror -1:goto 2900
+
+
+
+
+
