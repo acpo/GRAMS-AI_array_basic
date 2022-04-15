@@ -2,8 +2,12 @@
 ' Deals with the lack of compatible text importers in older GRAMS versions
 ' 12/04/2022 ECN
 ' 
-' Skips first two lines to accommodte any 2-line header
-' 
+' Skips header lines that begin with # 
+' This was written particularly to convert files created on the ETA Python 
+'  software.  Python takes as a standard using # as comment for headers.
+' A complete version of this import would look for ASCII characters 48 to 57 (numeric 0 to 9)
+'  and reject any initial lines that have non-numeric values.  That is feasible but will 
+'  require a longer IF statement.
 
 free
 
@@ -15,7 +19,6 @@ dim scratchy(12000)
 dim spcname (256)
 dim dir(256)
 dim junk(256)
-
 
 1000	ptr = 0
 	menufile $filenames="Select files: *.txt",2
@@ -38,11 +41,23 @@ dim junk(256)
 	open #1, $getname(f)			'open input file
 	strname 3, $newfile(f) = $getname(f)	'get output filename
 	string newfile(f) = $dir + $newfile(f)	'put full path into file string
-		for n = 0 to 1
-		input #1, "dummy", $junk	'read 2-line header
-		next n
+	skip = 0
+		for n = 0 to 19
+		input #1, "dummy", $junk	'read first 20 lines to find header
+		if not(index0(junk - 35) = 0) then goto 2400    'exit on first line NOT starting with #
+		skip = skip + 1    'count number of header lines
+   		next n
+	
+' Try reading first 20 lines and have it exit when it finds the first non-# line
+'  ascii code 35 is #
 
+2400	close #1   'close and reopen to reset input line to top of file
+	open #1, $getname(f)
 	i = 0		'initializes data array index
+	if skip = 0 then goto 2500  'no header so go directly to read data
+	for n = 0 to (skip-1)   'skip the determined number of comment lines
+	input #1, "dummy", $junk
+	next n
 
 2500	onerror 5000	'catches the end of file and sends it to write
 	input #1, "dummy", elapsedtime, value
@@ -74,8 +89,8 @@ dialogend -20	'close dialog at end of processing
 ' Exit clean up code
 ' *******************
 4000
-	free * 
-	free
+	free 
+	free *
 	end 
 
 ' *** Error handling ***
